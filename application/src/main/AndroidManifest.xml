@@ -3,7 +3,8 @@
 
     <application
         android:label="Yango Data Collector"
-        android:theme="@style/Theme.AppCompat.Light"
+        android:theme="@style/Theme.AppCompat.Light">
+        <activity
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
