@@ -2,4 +2,5 @@
     <string name="app_name">Yango Data Collector</string>
     <string name="build_ok">Build OK — étape 1 validée</string>
     <string name="enable_accessibility">Activer la lecture Yango</string>
+    <string name="accessibility_service_description">Permet à Yango Data Collector de détecter quand l\'application Yango est ouverte</string>
 </resources>
