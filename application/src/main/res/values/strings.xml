@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Yango Data Collector</string>
+    <string name="build_ok">Build OK — étape 1 validée</string>
+</resources>
