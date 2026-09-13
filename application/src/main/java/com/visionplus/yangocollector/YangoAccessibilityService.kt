@@ -34,9 +34,18 @@ class YangoAccessibilityService : AccessibilityService() {
 
         if (packageName == targetPackage) {
             val rootNode = rootInActiveWindow
-            if (rootNode != null) {
-                val texts = mutableListOf<String>()
-                collectText(rootNode, texts)
+
+            if (rootNode == null) {
+                prefs.edit().putString("yango_screen_text", "ERREUR: rootInActiveWindow est null").apply()
+                return
+            }
+
+            val texts = mutableListOf<String>()
+            collectText(rootNode, texts)
+
+            if (texts.isEmpty()) {
+                prefs.edit().putString("yango_screen_text", "ERREUR: aucun texte trouve dans l'arbre (childCount racine: ${rootNode.childCount})").apply()
+            } else {
                 val combined = texts.joinToString(" | ").take(2000)
                 prefs.edit().putString("yango_screen_text", combined).apply()
             }
