@@ -17,6 +17,14 @@
         android:id="@+id/btnEnableAccessibility"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/enable_accessibility" />
+        android:text="@string/enable_accessibility"
+        android:layout_marginBottom="32dp" />
+
+    <TextView
+        android:id="@+id/txtLastApp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Derniere app detectee : (aucune)"
+        android:textSize="16sp" />
 
 </LinearLayout>
