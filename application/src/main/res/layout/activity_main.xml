@@ -1,59 +1,51 @@
-<?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent">
+package com.visionplus.yangocollector
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="24dp">
+import android.content.Context
+import android.content.Intent
+import android.os.Bundle
+import android.provider.Settings
+import android.widget.Button
+import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/build_ok"
-            android:textSize="18sp"
-            android:layout_marginBottom="24dp" />
+class MainActivity : AppCompatActivity() {
 
-        <Button
-            android:id="@+id/btnEnableAccessibility"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/enable_accessibility"
-            android:layout_marginBottom="24dp" />
+    private lateinit var txtLastApp: TextView
+    private lateinit var txtServiceStatus: TextView
+    private lateinit var txtYangoScreen: TextView
 
-        <TextView
-            android:id="@+id/txtServiceStatus"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Statut service : (inconnu)"
-            android:textSize="16sp"
-            android:layout_marginBottom="8dp" />
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
 
-        <TextView
-            android:id="@+id/txtLastApp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Derniere app detectee : (aucune)"
-            android:textSize="16sp"
-            android:layout_marginBottom="24dp" />
+        txtLastApp = findViewById(R.id.txtLastApp)
+        txtServiceStatus = findViewById(R.id.txtServiceStatus)
+        txtYangoScreen = findViewById(R.id.txtYangoScreen)
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Contenu ecran Yango :"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="8dp" />
+        val button = findViewById<Button>(R.id.btnEnableAccessibility)
+        button.setOnClickListener {
+            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            startActivity(intent)
+        }
 
-        <TextView
-            android:id="@+id/txtYangoScreen"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="(aucun)"
-            android:textSize="14sp" />
+        val refreshButton = findViewById<Button>(R.id.btnRefresh)
+        refreshButton.setOnClickListener {
+            refreshData()
+        }
+    }
 
-    </LinearLayout>
+    override fun onResume() {
+        super.onResume()
+        refreshData()
+    }
 
-</ScrollView>
+    private fun refreshData() {
+        val prefs = getSharedPreferences("yango_collector_prefs", Context.MODE_PRIVATE)
+        val lastPackage = prefs.getString("last_package", "(aucune)")
+        val serviceStatus = prefs.getString("service_status", "(inconnu)")
+        val yangoScreen = prefs.getString("yango_screen_text", "(aucun)")
+        txtLastApp.text = "Derniere app detectee : $lastPackage"
+        txtServiceStatus.text = "Statut service : $serviceStatus"
+        txtYangoScreen.text = yangoScreen
+    }
+}
