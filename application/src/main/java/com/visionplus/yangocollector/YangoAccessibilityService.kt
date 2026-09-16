@@ -8,7 +8,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 
 class YangoAccessibilityService : AccessibilityService() {
 
-    private val targetPackage = "com.yango.driver"
+    private val targetPackage = "sinet.startup.inDriver"
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -70,7 +70,6 @@ class YangoAccessibilityService : AccessibilityService() {
             val combined = texts.joinToString(" | ").take(2000)
             prefs.edit().putString("yango_screen_text", "[$totalNodes noeuds] $combined").apply()
         }
-        // Si vide, on ne touche pas a la valeur precedente (garde la derniere capture reussie)
     }
 
     override fun onInterrupt() {
