@@ -27,10 +27,19 @@ class MainActivity : AppCompatActivity() {
             val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
             startActivity(intent)
         }
+
+        val refreshButton = findViewById<Button>(R.id.btnRefresh)
+        refreshButton.setOnClickListener {
+            refreshData()
+        }
     }
 
     override fun onResume() {
         super.onResume()
+        refreshData()
+    }
+
+    private fun refreshData() {
         val prefs = getSharedPreferences("yango_collector_prefs", Context.MODE_PRIVATE)
         val lastPackage = prefs.getString("last_package", "(aucune)")
         val serviceStatus = prefs.getString("service_status", "(inconnu)")
