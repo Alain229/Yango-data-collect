@@ -21,7 +21,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/enable_accessibility"
-            android:layout_marginBottom="24dp" />
+            android:layout_marginBottom="16dp" />
 
         <TextView
             android:id="@+id/txtServiceStatus"
@@ -56,6 +56,29 @@
 
         <TextView
             android:id="@+id/txtYangoScreen"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="(aucun)"
+            android:textSize="14sp"
+            android:layout_marginBottom="24dp" />
+
+        <Button
+            android:id="@+id/btnEnableOcr"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Activer surveillance captures"
+            android:layout_marginBottom="16dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Texte extrait (OCR) :"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:id="@+id/txtOcrResult"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="(aucun)"
