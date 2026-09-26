@@ -123,29 +123,70 @@ class MainActivity : AppCompatActivity() {
         refreshData()
     }
 
-    private fun handleNewImage(uri: Uri) {
+    private fun handleNewImage(uri: Uri, attempt: Int = 0) {
         val uriString = uri.toString()
-        if (uriString == lastProcessedUri) return
-        lastProcessedUri = uriString
-
-        try {
-            val inputStream = contentResolver.openInputStream(uri) ?: return
-            val bitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream.close()
-            if (bitmap == null) return
-
-            val image = InputImage.fromBitmap(bitmap, 0)
-            val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-            recognizer.process(image)
-                .addOnSuccessListener { visionText ->
-                    saveOcrResult(visionText.text)
-                }
-                .addOnFailureListener { e ->
-                    saveOcrResult("ERREUR OCR: ${e.message}")
-                }
-        } catch (e: Exception) {
-            saveOcrResult("EXCEPTION: ${e.message}")
+        if (attempt == 0) {
+            if (uriString == lastProcessedUri) return
+            lastProcessedUri = uriString
         }
+
+        val maxAttempts = 5
+        val delayMs = 400L
+
+        Handler(Looper.getMainLooper()).postDelayed({
+            try {
+                // Verifie si le fichier est encore en cours d'ecriture (IS_PENDING)
+                val projection = arrayOf(MediaStore.Images.Media.IS_PENDING)
+                var isPending = false
+                contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val idx = cursor.getColumnIndex(MediaStore.Images.Media.IS_PENDING)
+                        isPending = idx >= 0 && cursor.getInt(idx) == 1
+                    }
+                }
+
+                if (isPending) {
+                    if (attempt < maxAttempts) {
+                        handleNewImage(uri, attempt + 1)
+                    } else {
+                        saveOcrResult("ECHEC: fichier reste en pending apres $maxAttempts tentatives")
+                    }
+                    return@postDelayed
+                }
+
+                val inputStream = contentResolver.openInputStream(uri)
+                val bitmap = BitmapFactory.decodeStream(inputStream)
+                inputStream?.close()
+
+                if (bitmap == null) {
+                    if (attempt < maxAttempts) {
+                        handleNewImage(uri, attempt + 1)
+                    } else {
+                        saveOcrResult("ECHEC: image illisible apres $maxAttempts tentatives")
+                    }
+                    return@postDelayed
+                }
+
+                val image = InputImage.fromBitmap(bitmap, 0)
+                val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                recognizer.process(image)
+                    .addOnSuccessListener { visionText ->
+                        saveOcrResult(visionText.text)
+                    }
+                    .addOnFailureListener { e ->
+                        saveOcrResult("ERREUR OCR: ${e.message}")
+                    }
+
+            } catch (e: SecurityException) {
+                if (attempt < maxAttempts) {
+                    handleNewImage(uri, attempt + 1)
+                } else {
+                    saveOcrResult("ECHEC apres $maxAttempts tentatives (SecurityException): ${e.message}")
+                }
+            } catch (e: Exception) {
+                saveOcrResult("EXCEPTION: ${e.message}")
+            }
+        }, if (attempt == 0) delayMs else delayMs * attempt)
     }
 
     private fun saveOcrResult(text: String) {
