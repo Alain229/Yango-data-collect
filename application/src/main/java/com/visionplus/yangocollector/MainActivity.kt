@@ -28,6 +28,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var txtServiceStatus: TextView
     private lateinit var txtYangoScreen: TextView
     private lateinit var txtOcrResult: TextView
+    private lateinit var txtParsed: TextView
+    private lateinit var txtTripCount: TextView
+
+    private lateinit var dbHelper: TripDbHelper
 
     private var screenshotObserver: ContentObserver? = null
     private var lastProcessedUri: String? = null
@@ -36,10 +40,14 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        dbHelper = TripDbHelper(this)
+
         txtLastApp = findViewById(R.id.txtLastApp)
         txtServiceStatus = findViewById(R.id.txtServiceStatus)
         txtYangoScreen = findViewById(R.id.txtYangoScreen)
         txtOcrResult = findViewById(R.id.txtOcrResult)
+        txtParsed = findViewById(R.id.txtParsed)
+        txtTripCount = findViewById(R.id.txtTripCount)
 
         val button = findViewById<Button>(R.id.btnEnableAccessibility)
         button.setOnClickListener {
@@ -69,10 +77,14 @@ class MainActivity : AppCompatActivity() {
         val serviceStatus = prefs.getString("service_status", "(inconnu)")
         val yangoScreen = prefs.getString("yango_screen_text", "(aucun)")
         val ocrText = prefs.getString("last_ocr_text", "(aucun)")
+        val parsedSummary = prefs.getString("last_parsed_summary", "(aucune)")
+
         txtLastApp.text = "Derniere app detectee : $lastPackage"
         txtServiceStatus.text = "Statut service : $serviceStatus"
         txtYangoScreen.text = yangoScreen
         txtOcrResult.text = ocrText
+        txtParsed.text = parsedSummary
+        txtTripCount.text = "Courses enregistrees : ${dbHelper.compterTrips()}"
     }
 
     private fun requestImagePermissionAndStart() {
@@ -135,7 +147,6 @@ class MainActivity : AppCompatActivity() {
 
         Handler(Looper.getMainLooper()).postDelayed({
             try {
-                // Verifie si le fichier est encore en cours d'ecriture (IS_PENDING)
                 val projection = arrayOf(MediaStore.Images.Media.IS_PENDING)
                 var isPending = false
                 contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
@@ -192,6 +203,20 @@ class MainActivity : AppCompatActivity() {
     private fun saveOcrResult(text: String) {
         val prefs = getSharedPreferences("yango_collector_prefs", Context.MODE_PRIVATE)
         prefs.edit().putString("last_ocr_text", text.take(2000)).apply()
+
+        val trip = TripParser.parse(text)
+        dbHelper.insererTrip(trip)
+
+        val resumeParsed = buildString {
+            append("Distance : ${trip.distanceKm ?: "?"} km\n")
+            append("Duree : ${trip.dureeMin ?: "?"} min\n")
+            append("Revenu : ${trip.revenuFcfa ?: "?"} FCFA\n")
+            append("Date : ${trip.dateCourse ?: "?"}\n")
+            append("Passager : ${trip.nomPassager ?: "?"}\n")
+            append("Adresses : ${trip.adressesBrutes.ifEmpty { "?" }}")
+        }
+        prefs.edit().putString("last_parsed_summary", resumeParsed).apply()
+
         runOnUiThread { refreshData() }
     }
 
