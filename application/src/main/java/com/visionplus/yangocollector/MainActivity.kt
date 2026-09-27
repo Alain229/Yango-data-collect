@@ -4,23 +4,14 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.database.ContentObserver
-import android.graphics.BitmapFactory
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.provider.MediaStore
 import android.provider.Settings
 import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 
 class MainActivity : AppCompatActivity() {
 
@@ -32,9 +23,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var txtTripCount: TextView
 
     private lateinit var dbHelper: TripDbHelper
-
-    private var screenshotObserver: ContentObserver? = null
-    private var lastProcessedUri: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,20 +37,16 @@ class MainActivity : AppCompatActivity() {
         txtParsed = findViewById(R.id.txtParsed)
         txtTripCount = findViewById(R.id.txtTripCount)
 
-        val button = findViewById<Button>(R.id.btnEnableAccessibility)
-        button.setOnClickListener {
-            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-            startActivity(intent)
+        findViewById<Button>(R.id.btnEnableAccessibility).setOnClickListener {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }
 
-        val refreshButton = findViewById<Button>(R.id.btnRefresh)
-        refreshButton.setOnClickListener {
+        findViewById<Button>(R.id.btnRefresh).setOnClickListener {
             refreshData()
         }
 
-        val enableOcrButton = findViewById<Button>(R.id.btnEnableOcr)
-        enableOcrButton.setOnClickListener {
-            requestImagePermissionAndStart()
+        findViewById<Button>(R.id.btnEnableOcr).setOnClickListener {
+            demarrerServiceSurveillance()
         }
     }
 
@@ -87,17 +71,29 @@ class MainActivity : AppCompatActivity() {
         txtTripCount.text = "Courses enregistrees : ${dbHelper.compterTrips()}"
     }
 
-    private fun requestImagePermissionAndStart() {
-        val permission = if (Build.VERSION.SDK_INT >= 33) {
+    private fun demarrerServiceSurveillance() {
+        val permissionImages = if (Build.VERSION.SDK_INT >= 33) {
             Manifest.permission.READ_MEDIA_IMAGES
         } else {
             Manifest.permission.READ_EXTERNAL_STORAGE
         }
 
-        if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED) {
-            startWatching()
+        val permissionsManquantes = mutableListOf<String>()
+
+        if (ContextCompat.checkSelfPermission(this, permissionImages) != PackageManager.PERMISSION_GRANTED) {
+            permissionsManquantes.add(permissionImages)
+        }
+
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            permissionsManquantes.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        if (permissionsManquantes.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, permissionsManquantes.toTypedArray(), 2001)
         } else {
-            ActivityCompat.requestPermissions(this, arrayOf(permission), 2001)
+            lancerService()
         }
     }
 
@@ -107,121 +103,20 @@ class MainActivity : AppCompatActivity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 2001 && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            startWatching()
-        }
-    }
-
-    private fun startWatching() {
-        if (screenshotObserver != null) return
-
-        val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
-            override fun onChange(selfChange: Boolean, uri: Uri?) {
-                super.onChange(selfChange, uri)
-                if (uri != null) {
-                    handleNewImage(uri)
-                }
+        if (requestCode == 2001) {
+            val permissionImages = if (Build.VERSION.SDK_INT >= 33) {
+                Manifest.permission.READ_MEDIA_IMAGES
+            } else {
+                Manifest.permission.READ_EXTERNAL_STORAGE
+            }
+            if (ContextCompat.checkSelfPermission(this, permissionImages) == PackageManager.PERMISSION_GRANTED) {
+                lancerService()
             }
         }
-        screenshotObserver = observer
-        contentResolver.registerContentObserver(
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-            true,
-            observer
-        )
-
-        val prefs = getSharedPreferences("yango_collector_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putString("last_ocr_text", "Surveillance activee, en attente d'une capture...").apply()
-        refreshData()
     }
 
-    private fun handleNewImage(uri: Uri, attempt: Int = 0) {
-        val uriString = uri.toString()
-        if (attempt == 0) {
-            if (uriString == lastProcessedUri) return
-            lastProcessedUri = uriString
-        }
-
-        val maxAttempts = 5
-        val delayMs = 400L
-
-        Handler(Looper.getMainLooper()).postDelayed({
-            try {
-                val projection = arrayOf(MediaStore.Images.Media.IS_PENDING)
-                var isPending = false
-                contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
-                    if (cursor.moveToFirst()) {
-                        val idx = cursor.getColumnIndex(MediaStore.Images.Media.IS_PENDING)
-                        isPending = idx >= 0 && cursor.getInt(idx) == 1
-                    }
-                }
-
-                if (isPending) {
-                    if (attempt < maxAttempts) {
-                        handleNewImage(uri, attempt + 1)
-                    } else {
-                        saveOcrResult("ECHEC: fichier reste en pending apres $maxAttempts tentatives")
-                    }
-                    return@postDelayed
-                }
-
-                val inputStream = contentResolver.openInputStream(uri)
-                val bitmap = BitmapFactory.decodeStream(inputStream)
-                inputStream?.close()
-
-                if (bitmap == null) {
-                    if (attempt < maxAttempts) {
-                        handleNewImage(uri, attempt + 1)
-                    } else {
-                        saveOcrResult("ECHEC: image illisible apres $maxAttempts tentatives")
-                    }
-                    return@postDelayed
-                }
-
-                val image = InputImage.fromBitmap(bitmap, 0)
-                val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-                recognizer.process(image)
-                    .addOnSuccessListener { visionText ->
-                        saveOcrResult(visionText.text)
-                    }
-                    .addOnFailureListener { e ->
-                        saveOcrResult("ERREUR OCR: ${e.message}")
-                    }
-
-            } catch (e: SecurityException) {
-                if (attempt < maxAttempts) {
-                    handleNewImage(uri, attempt + 1)
-                } else {
-                    saveOcrResult("ECHEC apres $maxAttempts tentatives (SecurityException): ${e.message}")
-                }
-            } catch (e: Exception) {
-                saveOcrResult("EXCEPTION: ${e.message}")
-            }
-        }, if (attempt == 0) delayMs else delayMs * attempt)
-    }
-
-    private fun saveOcrResult(text: String) {
-        val prefs = getSharedPreferences("yango_collector_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putString("last_ocr_text", text.take(2000)).apply()
-
-        val trip = TripParser.parse(text)
-        dbHelper.insererTrip(trip)
-
-        val resumeParsed = buildString {
-            append("Distance : ${trip.distanceKm ?: "?"} km\n")
-            append("Duree : ${trip.dureeMin ?: "?"} min\n")
-            append("Revenu : ${trip.revenuFcfa ?: "?"} FCFA\n")
-            append("Date : ${trip.dateCourse ?: "?"}\n")
-            append("Passager : ${trip.nomPassager ?: "?"}\n")
-            append("Adresses : ${trip.adressesBrutes.ifEmpty { "?" }}")
-        }
-        prefs.edit().putString("last_parsed_summary", resumeParsed).apply()
-
-        runOnUiThread { refreshData() }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        screenshotObserver?.let { contentResolver.unregisterContentObserver(it) }
+    private fun lancerService() {
+        val intent = Intent(this, ScreenshotForegroundService::class.java)
+        ContextCompat.startForegroundService(this, intent)
     }
 }
